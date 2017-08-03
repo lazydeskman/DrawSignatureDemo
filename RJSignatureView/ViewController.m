@@ -41,7 +41,9 @@
 }
 
 - (void)saveAction:(id)sender {
-    sigView.lineColor = UIColor.blackColor;
+    sigView.lineColor = [UIColor colorWithRed:1.0 green:1.0 blue:1.0 alpha:0.0f];
+//    CGFloat width = (arc4random() % 20 ) / 1000.f;
+//    sigView.lineWidth = width;
 }
 
 

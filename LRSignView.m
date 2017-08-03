@@ -66,26 +66,20 @@ static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     GLuint lineBuffer;//线条缓冲句柄
     GLuint lineArray;//线条缓冲区
     uint lineLength;//线条长度
-    GLuint dotBuffer;//点缓冲句柄
-    GLuint dotArray;//点缓冲区
-    uint dotLength;//点长度
     float currentThickness;//线条宽度
-    float previousThickness;
+    float previousThickness;//上次线条宽度
     float stroke_width_max;//线条最宽处的宽度
     float stroke_width_min;//线条最窄处的宽度
     float stroke_width_smooth;//线条平滑值
-    float velocity_clamp_max;
-    float velocity_clamp_min;
-    float quadratic_distance_tolerance;
-    GLKVector4 vertex_color;
-    GLKVector4 clear_color;
-    CGPoint previousPoint;
-    CGPoint previousMidPoint;
-    
-    AWSignPoint previousVertex;
-    AWSignPoint currentVelocity;
+    float velocity_clamp_max;//速度上限
+    float velocity_clamp_min;//速度下限
+    float quadratic_distance_tolerance;//拆分距离
+    GLKVector4 vertex_color;//顶点颜色(线条/点颜色,绘制颜色)
+    GLKVector4 clear_color;//清除颜色glClear用来清除颜色缓冲
+    CGPoint previousPoint;//上一个点
+    CGPoint previousMidPoint;//上一个重点
+    AWSignPoint previousVertex;//上一个顶点数据
     NSMutableData * lineData;//保存线条 顶点数据
-    NSMutableData * dotData;//保存点  顶点数据
 
 }
 @end
@@ -124,7 +118,6 @@ static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     [self initParameters];
     [self compileShaderAndProgram];//编译着色器/程序
     [self generateLineBufferData];//初始化用来画线条的缓冲
-    [self generateDotBufferData];//初始化用来画点的缓冲
     [self configGesutreRecognizeies];//初始化手势
 
 }
@@ -133,17 +126,15 @@ static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
  初始化参数
  */
 - (void)initParameters {
-    currentThickness = 0.006;
+    currentThickness = 0.007;
     stroke_width_min = 0.002;
-    stroke_width_max = 0.009;
+    stroke_width_max = 0.011;
     stroke_width_smooth = 0.5;
     velocity_clamp_min = 10.0;
-    velocity_clamp_max = 5000.0;
-    quadratic_distance_tolerance = 3.0;
+    velocity_clamp_max = 8000.0;
+    quadratic_distance_tolerance = 1.5;
     lineLength = 0;
-    dotLength = 0;
     previousPoint = CGPointMake(-100, -100);
-    dotData = [NSMutableData data];
     lineData = [NSMutableData data];
     vertex_color = GLKVector4Make(0.0, 0.0, 0.0, 1.0);
     clear_color = GLKVector4Make(1.0, 1.0, 1.0, 0.0);
@@ -235,22 +226,9 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     glBindVertexArray(lineArray);//绑定缓冲对象
     glGenBuffers(1, &lineBuffer);//生成会缓冲去
     glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);//绑定缓冲区
-//    glBufferData(GL_ARRAY_BUFFER, sizeof(AWSignPoint)*max_count, NULL, GL_DYNAMIC_DRAW);//将数据写入缓冲区,这里写入空,缓冲区大小为sizeof(AWSignPoint)*max_count
     [self bindVertexAttribute];//绑定属性
     glBindVertexArray(0);//解除缓冲对象绑定
-}
-
-/**
- 生成点缓冲
- */
-- (void)generateDotBufferData {
-    glGenVertexArrays(1, &dotArray);
-    glBindVertexArray(dotArray);
-    glGenBuffers(1, &dotBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, dotBuffer);
-//    glBufferData(GL_ARRAY_BUFFER, sizeof(AWSignPoint)*max_count, NULL, GL_DYNAMIC_DRAW);
-    [self bindVertexAttribute];
-    glBindVertexArray(0);
+    glViewport(0, 0, self.bounds.size.width, self.bounds.size.height);
 }
 
 /**
@@ -282,12 +260,12 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
 - (void)tapAction:(UITapGestureRecognizer*)tap {
     CGPoint location = [tap locationInView:self];
     if (tap.state == UIGestureRecognizerStateRecognized) {
-        glBindBuffer(GL_ARRAY_BUFFER, dotArray);
+        glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);
         AWSignPoint touchPoint = ViewPointToGL(location, self.bounds,vertex_color);
-        [dotData appendBytes:&touchPoint length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&touchPoint length:sizeof(AWSignPoint)];
         AWSignPoint centerPoint = touchPoint;
         centerPoint.color = vertex_color;
-        [dotData appendBytes:&centerPoint length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&centerPoint length:sizeof(AWSignPoint)];
         static int segments = 15;
         GLKVector2 radius = (GLKVector2){
             clamp(0.00001, 0.02, currentThickness * generateRandom(0.5, 1.5)),
@@ -302,14 +280,14 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
             p.color = GLKVector4Make(vertex_color.r, vertex_color.g, vertex_color.b, vertex_color.a*stroke_width_smooth);
             p.position.x += velocityRadius.x * cosf(angle);
             p.position.y += velocityRadius.y * sinf(angle);
-            [dotData appendBytes:&p length:sizeof(AWSignPoint)];
-            [dotData appendBytes:&centerPoint length:sizeof(AWSignPoint)];
-            dotLength += 2;
+            [lineData appendBytes:&p length:sizeof(AWSignPoint)];
+            [lineData appendBytes:&centerPoint length:sizeof(AWSignPoint)];
+            lineLength += 2;
             angle += M_PI * 2.0 / segments;
         }
-        [dotData appendBytes:&touchPoint length:sizeof(AWSignPoint)];
-        dotLength += 3;
-        [self updateDotBuffer];
+        [lineData appendBytes:&touchPoint length:sizeof(AWSignPoint)];
+        lineLength += 3;
+        [self updateLineBuffer];
        
     }
     [self setNeedsDisplay];
@@ -325,7 +303,6 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     CGPoint velocity = [pan velocityInView:self];
     CGPoint location = [pan locationInView:self];
     
-    currentVelocity = ViewPointToGL(velocity, self.bounds, vertex_color);
     float distance = 0.;
     if (previousPoint.x > 0) {
         distance = sqrtf((location.x - previousPoint.x) * (location.x - previousPoint.x) + (location.y - previousPoint.y) * (location.y - previousPoint.y));
@@ -356,7 +333,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         CGPoint mid = CGPointMake((location.x + previousPoint.x) / 2.0, (location.y + previousPoint.y) / 2.0);
         
         if (distance > quadratic_distance_tolerance) {
-            // Plot quadratic bezier instead of line
+            //切成片段
             unsigned int i;
             
             int segments = (int) distance / 1.5;
@@ -401,12 +378,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
 }
 
 /**
- 更新点的顶点数据
- */
-- (void)updateDotBuffer {
-    glBufferData(GL_ARRAY_BUFFER, dotData.length, dotData.bytes, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
+
 
 /**
  更新线条的顶点数据
@@ -415,7 +387,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     glBufferData(GL_ARRAY_BUFFER, lineData.length, lineData.bytes, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
-
+//切断线条成小段
 - (void)addTriangleStripPointsForPrevious:(AWSignPoint)previous next:(AWSignPoint)next {
     float toTravel = currentThickness / 2.0;
     
@@ -454,6 +426,54 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     }
     _lineColor = lineColor;
 }
+/**
+ 设置线条宽度
+ 
+ @param lineWidth 宽度
+ */
+-(void)setLineWidth:(CGFloat)lineWidth {
+    currentThickness = lineWidth;
+    stroke_width_max = lineWidth * 1.5f;
+    stroke_width_min = lineWidth * 0.25f;
+    _lineWidth = lineWidth;
+}
+/**
+ 设置橡皮擦宽度
+
+ @param eraserWidth 宽度
+ */
+- (void)setEraserWidth:(CGFloat)eraserWidth {
+
+}
+/**
+ 开始擦除
+ */
+- (void)eraserBegin {
+
+}
+/**
+ 擦除结束
+ */
+- (void)eraserEnd {
+    
+}
+/**
+ 撤销输入
+ @return 能否擦除
+ */
+- (BOOL)backword {
+    
+    return YES;
+}
+/**
+ 前进一步输入
+
+ @return 能否前进
+ */
+- (BOOL)forword {
+
+    return YES;
+}
 #pragma mark  GLKViewDelegate
 /**
  绘制
@@ -461,13 +481,8 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  @param rect self.bounds
  */
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect {
-    glViewport(0, 0, rect.size.width*[UIScreen mainScreen].scale, rect.size.height*[UIScreen mainScreen].scale);
     glClearColor(clear_color.r, clear_color.g, clear_color.b, clear_color.a);
     glClear(GL_COLOR_BUFFER_BIT);
-    if (dotLength>2) {
-        glBindVertexArray(dotArray);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, dotLength);
-    }
     if (lineLength>2) {
         glBindVertexArray(lineArray);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, lineLength);
