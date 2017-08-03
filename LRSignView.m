@@ -15,10 +15,6 @@ typedef struct {
     GLKVector4 color;//{r,g,b,a}
 }AWSignPoint;
 
-//定义能保存的最大顶点数目
-static uint max_count;// = 屏幕像素点的数目
-//static GLKVector4 vertex_color = {0.0,0.0,0.0,1.0};//线条颜色(黑色)
-//static GLKVector4 clear_color = {1.0,1.0,1.0,0.0};//清除颜色(透明)
 
 
 
@@ -97,10 +93,6 @@ static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
 
 @implementation LRSignView
 
-+ (void)load {
-    [super load];
-    max_count = ([UIScreen mainScreen].scale*[UIScreen mainScreen].bounds.size.width) * ([UIScreen mainScreen].scale*[UIScreen mainScreen].bounds.size.height);//初始化一下最大顶点数
-}
 
 - (instancetype)initWithFrame:(CGRect)frame {
     EAGLContext * context = [[EAGLContext alloc]initWithAPI:kEAGLRenderingAPIOpenGLES3];
