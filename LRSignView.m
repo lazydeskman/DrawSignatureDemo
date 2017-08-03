@@ -13,34 +13,34 @@
 typedef struct {
     GLKVector3 position;//{x,y,z(1.0)}
     GLKVector4 color;//{r,g,b,a}
-}AWSignPoint;
+}LRSignPoint;
 
 
 
 
-
+//控制点
 static inline CGPoint QuadraticPointInCurve(CGPoint start,CGPoint end,CGPoint controlPoint,float percent){
     double a = pow((1.0 - percent), 2.0);
     double b = 2.0 * percent * (1.0 - percent);
     double c = pow(percent, 2.0);
     return CGPointMake(a * start.x + b * controlPoint.x + c * end.x, a * start.y + b * controlPoint.y + c * end.y);
 }
-
+//随机数
 static inline float generateRandom(float from,float to){
     return random() % 10000 / 10000.0 * (to - from) + from;
 }
-
+//比较
 static inline float clamp(float min, float max, float value){
     return fmaxf(min, fminf(max, value));
 }
-
-static inline GLKVector3 perpendicular(AWSignPoint p1, AWSignPoint p2){
+//垂线
+static inline GLKVector3 perpendicular(LRSignPoint p1, LRSignPoint p2){
     
     return  GLKVector3Make(p2.position.y - p1.position.y,-1 * (p2.position.x - p1.position.x), 0);
 }
-
-static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVector4 color){
-    return (AWSignPoint) {
+//坐标转换
+static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVector4 color){
+    return (LRSignPoint) {
         {
             (viewPoint.x / bounds.size.width * 2.0 - 1),
             ((viewPoint.y / bounds.size.height) * 2.0 - 1) * -1,
@@ -56,9 +56,10 @@ static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
  一、直接使用glGenBuffer申请一个最大GPU空间,每次新的顶点 通过glMap获取指定位置,写入数据
  优势:单次写入数据量小
  缺点:如果顶点数目超过最大数,就不能能再写入数据了
- 二、CPU保存顶点数据,每次产生新的顶点后,通过glGenBuffer重新申请GPU空间,然后写入保存的所有顶点
+ 二、CPU保存顶点数据,每次产生新的顶点后,通过glBufferData重新写入保存的所有顶点数据
  优势:不会受限于一的方式申请的最大数
  缺点:每次写入的顶点数据会随着顶点数的增加而增加
+ 我选择第二种方式 理由:嗯 我定义的一个点的大小是32个字节  200W个点的话大概只有61MB,应该对于性能应该没有屁的影响
  */
 
 @interface LRSignView () <GLKViewDelegate>
@@ -78,7 +79,7 @@ static inline AWSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     GLKVector4 clear_color;//清除颜色glClear用来清除颜色缓冲
     CGPoint previousPoint;//上一个点
     CGPoint previousMidPoint;//上一个重点
-    AWSignPoint previousVertex;//上一个顶点数据
+    LRSignPoint previousVertex;//上一个顶点数据
     NSMutableData * lineData;//保存线条 顶点数据
 
 }
@@ -235,9 +236,9 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  启动顶点属性
  */
 - (void)bindVertexAttribute {
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AWSignPoint), (GLvoid*)NULL);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(LRSignPoint), (GLvoid*)NULL);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(AWSignPoint), (GLvoid*)NULL+offsetof(AWSignPoint, color));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(LRSignPoint), (GLvoid*)NULL+offsetof(LRSignPoint, color));
     glEnableVertexAttribArray(1);
 }
 
@@ -261,11 +262,11 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     CGPoint location = [tap locationInView:self];
     if (tap.state == UIGestureRecognizerStateRecognized) {
         glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);
-        AWSignPoint touchPoint = ViewPointToGL(location, self.bounds,vertex_color);
-        [lineData appendBytes:&touchPoint length:sizeof(AWSignPoint)];
-        AWSignPoint centerPoint = touchPoint;
+        LRSignPoint touchPoint = ViewPointToGL(location, self.bounds,vertex_color);
+        [lineData appendBytes:&touchPoint length:sizeof(LRSignPoint)];
+        LRSignPoint centerPoint = touchPoint;
         centerPoint.color = vertex_color;
-        [lineData appendBytes:&centerPoint length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&centerPoint length:sizeof(LRSignPoint)];
         static int segments = 15;
         GLKVector2 radius = (GLKVector2){
             clamp(0.00001, 0.02, currentThickness * generateRandom(0.5, 1.5)),
@@ -276,16 +277,16 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         
         for (int i = 0; i <= segments; i++) {
             
-            AWSignPoint p = centerPoint;
+            LRSignPoint p = centerPoint;
             p.color = GLKVector4Make(vertex_color.r, vertex_color.g, vertex_color.b, vertex_color.a*stroke_width_smooth);
             p.position.x += velocityRadius.x * cosf(angle);
             p.position.y += velocityRadius.y * sinf(angle);
-            [lineData appendBytes:&p length:sizeof(AWSignPoint)];
-            [lineData appendBytes:&centerPoint length:sizeof(AWSignPoint)];
+            [lineData appendBytes:&p length:sizeof(LRSignPoint)];
+            [lineData appendBytes:&centerPoint length:sizeof(LRSignPoint)];
             lineLength += 2;
             angle += M_PI * 2.0 / segments;
         }
-        [lineData appendBytes:&touchPoint length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&touchPoint length:sizeof(LRSignPoint)];
         lineLength += 3;
         [self updateLineBuffer];
        
@@ -321,11 +322,11 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         previousPoint = location;
         previousMidPoint = location;
         
-        AWSignPoint startPoint = ViewPointToGL(location, self.bounds, vertex_color);
+        LRSignPoint startPoint = ViewPointToGL(location, self.bounds, vertex_color);
         previousVertex = startPoint;
         previousThickness = currentThickness;
-        [lineData appendBytes:&startPoint length:sizeof(AWSignPoint)];
-        [lineData appendBytes:&previousVertex length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&startPoint length:sizeof(LRSignPoint)];
+        [lineData appendBytes:&previousVertex length:sizeof(LRSignPoint)];
         lineLength += 2;
         
     } else if ([pan state] == UIGestureRecognizerStateChanged) {
@@ -348,14 +349,14 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
                 
                 CGPoint quadPoint = QuadraticPointInCurve(previousMidPoint, mid, previousPoint, (float)i / (float)(segments));
                 
-                AWSignPoint v = ViewPointToGL(quadPoint, self.bounds, vertex_color);
+                LRSignPoint v = ViewPointToGL(quadPoint, self.bounds, vertex_color);
                 [self addTriangleStripPointsForPrevious:previousVertex next:v];
                 
                 previousVertex = v;
             }
         } else if (distance > 1.0) {
             
-            AWSignPoint v = ViewPointToGL(location, self.bounds, vertex_color);
+            LRSignPoint v = ViewPointToGL(location, self.bounds, vertex_color);
             [self addTriangleStripPointsForPrevious:previousVertex next:v];
             previousVertex = v;
             previousThickness = currentThickness;
@@ -366,19 +367,16 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         
     } else if (pan.state == UIGestureRecognizerStateEnded | pan.state == UIGestureRecognizerStateCancelled) {
         
-        AWSignPoint v = ViewPointToGL(location, self.bounds, vertex_color);
-        [lineData appendBytes:&v length:sizeof(AWSignPoint)];
+        LRSignPoint v = ViewPointToGL(location, self.bounds, vertex_color);
+        [lineData appendBytes:&v length:sizeof(LRSignPoint)];
         lineLength++;
         previousVertex = v;
-        [lineData appendBytes:&previousVertex length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&previousVertex length:sizeof(LRSignPoint)];
         lineLength++;
     }
     [self updateLineBuffer];
     [self setNeedsDisplay];
 }
-
-/**
-
 
 /**
  更新线条的顶点数据
@@ -388,7 +386,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 //切断线条成小段
-- (void)addTriangleStripPointsForPrevious:(AWSignPoint)previous next:(AWSignPoint)next {
+- (void)addTriangleStripPointsForPrevious:(LRSignPoint)previous next:(LRSignPoint)next {
     float toTravel = currentThickness / 2.0;
     
     for (int i = 0; i < 2; i++) {
@@ -404,11 +402,11 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         difX = difX * ratio;
         difY = difY * ratio;
         
-        AWSignPoint stripPoint = {
+        LRSignPoint stripPoint = {
             { p1.x + difX, p1.y + difY, 0.0 },
             vertex_color
         };
-        [lineData appendBytes:&stripPoint length:sizeof(AWSignPoint)];
+        [lineData appendBytes:&stripPoint length:sizeof(LRSignPoint)];
         lineLength++;
         toTravel *= -1;
     }
