@@ -21,21 +21,7 @@ static uint max_count;// = 屏幕像素点的数目
 //static GLKVector4 clear_color = {1.0,1.0,1.0,0.0};//清除颜色(透明)
 
 
-/**
- 将点数据添加到缓冲区
- @param length 长度
- @param point 点数据
- */
-static inline void addSignPoint(uint * length,AWSignPoint point){
-    if (*length >= max_count) {
-        printf("lenth beyond max_count");
-        return;
-    }
-    GLvoid * data = glMapBufferRange(GL_ARRAY_BUFFER, (*length)*sizeof(AWSignPoint), sizeof(AWSignPoint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
-    memcpy(data, &point, sizeof(AWSignPoint));
-    glUnmapBuffer(GL_ARRAY_BUFFER);
-    (*length)++;
-}
+
 
 static inline CGPoint QuadraticPointInCurve(CGPoint start,CGPoint end,CGPoint controlPoint,float percent){
     double a = pow((1.0 - percent), 2.0);
@@ -468,7 +454,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  @param lineColor 颜色
  */
 - (void)setLineColor:(UIColor *)lineColor {
-    double red,green,blue,alpha,white;
+    CGFloat red,green,blue,alpha,white;
     if ([lineColor getRed:&red green:&green blue:&blue alpha:&alpha]) {
         vertex_color = GLKVector4Make(red, green, blue, alpha);
     }else if ([lineColor getWhite:&white alpha:&alpha]) {
