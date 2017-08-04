@@ -9,6 +9,17 @@
 #import "LRSignView.h"
 #import <OpenGLES/ES3/gl.h>
 #import <OpenGLES/ES3/glext.h>
+
+/*
+ 这个枚举的作用,记录上次的操作类型,write 用于手写和擦除,word用于撤销和前进  的状态标注
+ */
+typedef NS_ENUM(NSUInteger, LRHandleState) {
+    LRHandleStateWrite = 0,
+    LRHandleStateWord = 1,
+};
+
+
+
 //定义每个点的数据结构(位置x,y,z(0.0),颜色r,g,b,a)
 typedef struct {
     GLKVector3 position;//{x,y,z(1.0)}
@@ -81,7 +92,10 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     CGPoint previousMidPoint;//上一个重点
     LRSignPoint previousVertex;//上一个顶点数据
     NSMutableData * lineData;//保存线条 顶点数据
-
+    float eraser_width;//橡皮宽度
+    BOOL isErasing;//是否正在擦除
+    NSMutableArray * indexRecords;//记录位置,点击(滑动)结束时需要draw到的index
+    LRHandleState lastHandleState;//记录上次的操作类型
 }
 @end
 
@@ -139,7 +153,8 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     lineData = [NSMutableData data];
     vertex_color = GLKVector4Make(0.0, 0.0, 0.0, 1.0);
     clear_color = GLKVector4Make(1.0, 1.0, 1.0, 0.0);
-
+    indexRecords = @[].mutableCopy;
+    lastHandleState = LRHandleStateWrite;
 }
 
 /**
@@ -261,6 +276,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
 - (void)tapAction:(UITapGestureRecognizer*)tap {
     CGPoint location = [tap locationInView:self];
     if (tap.state == UIGestureRecognizerStateRecognized) {
+        [self checkLasHandleState];
         glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);
         LRSignPoint touchPoint = ViewPointToGL(location, self.bounds,vertex_color);
         [lineData appendBytes:&touchPoint length:sizeof(LRSignPoint)];
@@ -289,7 +305,8 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         [lineData appendBytes:&touchPoint length:sizeof(LRSignPoint)];
         lineLength += 3;
         [self updateLineBuffer];
-       
+        [indexRecords addObject:[NSNumber numberWithUnsignedInt:lineLength]];
+        
     }
     [self setNeedsDisplay];
 }
@@ -318,7 +335,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     currentThickness = currentThickness * lowPassFilterAlpha + newThickness * (1 - lowPassFilterAlpha);
     
     if ([pan state] == UIGestureRecognizerStateBegan) {
-        
+        [self checkLasHandleState];
         previousPoint = location;
         previousMidPoint = location;
         
@@ -373,6 +390,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         previousVertex = v;
         [lineData appendBytes:&previousVertex length:sizeof(LRSignPoint)];
         lineLength++;
+        [indexRecords addObject:[NSNumber numberWithUnsignedInt:lineLength]];
     }
     [self updateLineBuffer];
     [self setNeedsDisplay];
@@ -411,6 +429,42 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         toTravel *= -1;
     }
 }
+
+/**
+ 检验上次操作
+ */
+- (void)checkLasHandleState {
+    if (lastHandleState == LRHandleStateWord) {
+        [self verifyDataBuffer];
+        lastHandleState = LRHandleStateWrite;
+    }
+}
+
+/**
+ 对比位置如果有需要则清除部分顶点数据和记录点数据
+ */
+- (void)verifyDataBuffer {
+    /*
+     适用情景,用户手写,记录顶点,用户一共操作 0-5 步, indexRecord记录了这 0-5 步, 用户撤销输入一次, 这个时候 需要绘制的步骤 实际是 0-4步,如果改变lineLength到4 绘制是可以的,如果用户继续操作,顶点数据被写入的实际是6位置,所以 我需要在操作开始前判断下,在这个操作之前的操作是
+     */
+    if (indexRecords.count) {
+        NSNumber * num = [NSNumber numberWithUnsignedInt:lineLength];
+        NSUInteger index = [indexRecords indexOfObject:num];
+        NSUInteger total = [indexRecords count];
+        if (lineLength!=0) {
+            if (index != total-1) {
+                [indexRecords removeObjectsInRange:NSMakeRange(index+1, total-index-1)];
+                NSUInteger len = lineLength * sizeof(LRSignPoint);
+                //怎么都算不对位置,妈的,不取了,直接取子数据
+                lineData = [NSMutableData dataWithData:[lineData subdataWithRange:NSMakeRange(0, len)]];
+            }
+        }else{
+            [indexRecords removeAllObjects];
+            lineData = [NSMutableData data];
+        }
+    }
+}
+
 /**
  设置线条颜色
  @param lineColor 颜色
@@ -460,8 +514,21 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  @return 能否擦除
  */
 - (BOOL)backword {
-    
-    return YES;
+    lastHandleState = LRHandleStateWord;
+    NSNumber * num = [NSNumber numberWithUnsignedInt:lineLength];
+    if ([indexRecords containsObject:num]) {
+        NSUInteger index = [indexRecords indexOfObject:num];
+        NSInteger desIndex = index - 1;
+        if (desIndex >= 0) {
+            lineLength = [[indexRecords objectAtIndex:desIndex]unsignedIntValue];
+            [self setNeedsDisplay];
+            return YES;
+        }else{
+            lineLength = 0;
+            [self setNeedsDisplay];
+        }
+    }
+    return NO;
 }
 /**
  前进一步输入
@@ -469,7 +536,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  @return 能否前进
  */
 - (BOOL)forword {
-
+    lastHandleState = LRHandleStateWord;
     return YES;
 }
 #pragma mark  GLKViewDelegate
@@ -486,5 +553,4 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         glDrawArrays(GL_TRIANGLE_STRIP, 0, lineLength);
     }
 }
-
 @end
