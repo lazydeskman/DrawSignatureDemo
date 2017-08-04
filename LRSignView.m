@@ -163,6 +163,7 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
  编译 顶点/片段着色器和程序
  */
 - (void)compileShaderAndProgram {
+    //应该从文件读取顶点和判断着色器会比较好
     //顶点着色器
     char vShaderStr[] =     "#version 300 es                          \n"
                             "layout(location = 0) in vec4 vPosition;  \n"
