@@ -568,11 +568,20 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     }
 }
 
+
+/**
+ 签名图片
+ @return 签名图片
+ */
+- (UIImage *)signatureImage{
+    return [self snapshot];
+}
+
 /**
  获取签名原始数据
  @return 数据
  */
-- (NSData *)signBufferData {
+- (NSData *)signatureBufferData {
     return [lineData copy];
 }
 
