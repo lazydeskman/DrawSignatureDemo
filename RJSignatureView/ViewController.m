@@ -71,6 +71,5 @@
         imageView.image = [sigView signatureImage];
         sigView.hidden = YES;
     }
-
 }
 @end

@@ -17,8 +17,6 @@ typedef NS_ENUM(NSUInteger, LRHandleState) {
     LRHandleStateWord = 1,
 };
 
-
-
 //定义每个点的数据结构(位置x,y,z(0.0),颜色r,g,b,a)
 typedef struct {
     GLKVector3 position;//{x,y,z(1.0)}
@@ -147,7 +145,7 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     velocity_clamp_max = 8000.0;
     quadratic_distance_tolerance = 1.5;
     lineLength = 0;
-    previousPoint = CGPointMake(-100, -100);
+    previousPoint = CGPointMake(-100, 0);
     lineData = [NSMutableData data];
     vertex_color = GLKVector4Make(0.0, 0.0, 0.0, 1.0);
     clear_color = GLKVector4Make(0.0, 0.0, 0.0, 0.0);
@@ -406,7 +404,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     glBufferData(GL_ARRAY_BUFFER, lineData.length, lineData.bytes, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
-//切断线条成小段
+//切断线条成小段,画三角形
 - (void)addTriangleStripPointsForPrevious:(LRSignPoint)previous next:(LRSignPoint)next {
     float toTravel = currentThickness / 2.0;
     
@@ -601,6 +599,8 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         return NO;
     }
     lineData = [NSMutableData dataWithData:data];
+    glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);
+    [self updateLineBuffer];
     [self setNeedsDisplay];
     return YES;
 }
