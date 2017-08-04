@@ -9,7 +9,6 @@
 #import "LRSignView.h"
 #import <OpenGLES/ES3/gl.h>
 #import <OpenGLES/ES3/glext.h>
-
 /*
  这个枚举的作用,记录上次的操作类型,write 用于手写和擦除,word用于撤销和前进  的状态标注
  */
@@ -567,6 +566,34 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
             }
         }
     }
+}
+
+/**
+ 获取签名原始数据
+ @return 数据
+ */
+- (NSData *)signBufferData {
+    return [lineData copy];
+}
+
+/**
+ 从文件读取并显示签名
+
+ @param filePath 文件路径
+ @return 能否显示
+ */
+- (BOOL)displaySignatureFromFile:(NSString *)filePath {
+    NSFileManager * manager = [NSFileManager defaultManager];
+    if (![manager fileExistsAtPath:filePath]) {
+        return NO;
+    }
+    NSData * data = [NSData dataWithContentsOfFile:filePath];
+    if (!data) {
+        return NO;
+    }
+    lineData = [NSMutableData dataWithData:data];
+    [self setNeedsDisplay];
+    return YES;
 }
 #pragma mark  GLKViewDelegate
 /**
