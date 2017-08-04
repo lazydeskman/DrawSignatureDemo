@@ -133,7 +133,6 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     [self compileShaderAndProgram];//编译着色器/程序
     [self generateLineBufferData];//初始化用来画线条的缓冲
     [self configGesutreRecognizeies];//初始化手势
-
 }
 
 /**
@@ -151,7 +150,7 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     previousPoint = CGPointMake(-100, -100);
     lineData = [NSMutableData data];
     vertex_color = GLKVector4Make(0.0, 0.0, 0.0, 1.0);
-    clear_color = GLKVector4Make(1.0, 1.0, 1.0, 0.0);
+    clear_color = GLKVector4Make(0.0, 0.0, 0.0, 0.0);
     indexRecords = @[].mutableCopy;
     lastHandleState = LRHandleStateWrite;
     isErasing = NO;
@@ -521,7 +520,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     if (!isErasing) {
         isErasing = YES;
         [self setEraserWidth:_eraserWidth];
-        vertex_color = GLKVector4Make(1.0, 1.0, 1.0, 0.0);
+        vertex_color = GLKVector4Make(0.0, 0.0, 0.0, 0.0);
     }
 }
 /**
