@@ -18,7 +18,7 @@
  */
 @property (assign, nonatomic) CGFloat lineWidth;
 /**
- 橡皮擦宽度,默认为
+ 橡皮擦宽度,默认为 0.1
  */
 @property (assign, nonatomic) CGFloat eraserWidth;
 /**
@@ -31,12 +31,10 @@
 - (void)eraserEnd;
 /**
  撤销(后退一步)
- @return YES可以撤销,NO没有内容可以撤销
  */
-- (BOOL)backword;
+- (void)backword;
 /**
  前进(前进一步)
- @return YES可以前进,NO没有内容可以前进
  */
-- (BOOL)forword;
+- (void)forword;
 @end

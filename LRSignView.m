@@ -155,6 +155,10 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     clear_color = GLKVector4Make(1.0, 1.0, 1.0, 0.0);
     indexRecords = @[].mutableCopy;
     lastHandleState = LRHandleStateWrite;
+    isErasing = NO;
+    _lineColor = UIColor.blackColor;
+    _lineWidth = 0.007;
+    _eraserWidth = 0.1;
 }
 
 /**
@@ -470,13 +474,15 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  @param lineColor 颜色
  */
 - (void)setLineColor:(UIColor *)lineColor {
-    CGFloat red,green,blue,alpha,white;
-    if ([lineColor getRed:&red green:&green blue:&blue alpha:&alpha]) {
-        vertex_color = GLKVector4Make(red, green, blue, alpha);
-    }else if ([lineColor getWhite:&white alpha:&alpha]) {
-        vertex_color = GLKVector4Make(white, white, white, alpha);
-    }
     _lineColor = lineColor;
+    if (!isErasing) {
+        CGFloat red,green,blue,alpha,white;
+        if ([lineColor getRed:&red green:&green blue:&blue alpha:&alpha]) {
+            vertex_color = GLKVector4Make(red, green, blue, alpha);
+        }else if ([lineColor getWhite:&white alpha:&alpha]) {
+            vertex_color = GLKVector4Make(white, white, white, alpha);
+        }
+    }
 }
 /**
  设置线条宽度
@@ -484,36 +490,55 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  @param lineWidth 宽度
  */
 -(void)setLineWidth:(CGFloat)lineWidth {
-    currentThickness = lineWidth;
-    stroke_width_max = lineWidth * 1.5f;
-    stroke_width_min = lineWidth * 0.25f;
     _lineWidth = lineWidth;
+    if (!isErasing) {
+        [self executeStrokeWidth:_lineWidth];
+    }
 }
+
+
+- (void)executeStrokeWidth:(CGFloat)width {
+    currentThickness = width;
+    stroke_width_max = width * 1.5f;
+    stroke_width_min = width * 0.25f;
+}
+
 /**
  设置橡皮擦宽度
 
  @param eraserWidth 宽度
  */
 - (void)setEraserWidth:(CGFloat)eraserWidth {
-
+    _eraserWidth = eraserWidth;
+    if (isErasing) {
+        [self executeStrokeWidth:_eraserWidth];
+        
+    }
 }
 /**
  开始擦除
  */
 - (void)eraserBegin {
-
+    if (!isErasing) {
+        isErasing = YES;
+        [self setEraserWidth:_eraserWidth];
+        vertex_color = GLKVector4Make(1.0, 1.0, 1.0, 0.0);
+    }
 }
 /**
  擦除结束
  */
 - (void)eraserEnd {
-    
+    if (isErasing) {
+        isErasing = NO;
+        [self setLineColor:_lineColor];
+        [self setLineWidth:_lineWidth];
+    }
 }
 /**
  撤销输入
- @return 能否擦除
  */
-- (BOOL)backword {
+- (void)backword {
     lastHandleState = LRHandleStateWord;
     NSNumber * num = [NSNumber numberWithUnsignedInt:lineLength];
     if ([indexRecords containsObject:num]) {
@@ -522,22 +547,26 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         if (desIndex >= 0) {
             lineLength = [[indexRecords objectAtIndex:desIndex]unsignedIntValue];
             [self setNeedsDisplay];
-            return YES;
         }else{
             lineLength = 0;
             [self setNeedsDisplay];
         }
     }
-    return NO;
 }
 /**
  前进一步输入
-
- @return 能否前进
  */
-- (BOOL)forword {
-    lastHandleState = LRHandleStateWord;
-    return YES;
+- (void)forword {
+    if (lastHandleState == LRHandleStateWord) {
+        NSNumber * num = [NSNumber numberWithUnsignedInt:lineLength];
+        if ([indexRecords containsObject:num]) {
+            NSUInteger index = [indexRecords indexOfObject:num];
+            if (index != indexRecords.count-1) {
+                lineLength = [[indexRecords objectAtIndex:index+1]unsignedIntValue];
+                [self setNeedsDisplay];
+            }
+        }
+    }
 }
 #pragma mark  GLKViewDelegate
 /**
