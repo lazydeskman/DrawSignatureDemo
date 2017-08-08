@@ -200,9 +200,9 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
         }
         glDeleteProgram(programObj);
     }
-    glDeleteShader(vShader);
-    glDeleteShader(fShader);
-    glUseProgram(programObj);
+    glDeleteShader(vShader);//标记顶点着色器可删除
+    glDeleteShader(fShader);//标记片段着色器可删除
+    glUseProgram(programObj);//使用程序
     
 }
 
@@ -239,19 +239,20 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  生成线条缓冲
  */
 - (void)generateLineBufferData {
-    glGenVertexArrays(1, &lineArray);//生成缓冲对象
-    glBindVertexArray(lineArray);//绑定缓冲对象
-    glGenBuffers(1, &lineBuffer);//生成会缓冲去
-    glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);//绑定缓冲区
+    glGenVertexArrays(1, &lineArray);//生成顶点数组对象
+    glBindVertexArray(lineArray);//绑定顶点数组对象
+    glGenBuffers(1, &lineBuffer);//生成顶点缓冲区对象
+    glBindBuffer(GL_ARRAY_BUFFER, lineBuffer);//绑定顶点缓冲区对象
     [self bindVertexAttribute];//绑定属性
     glBindVertexArray(0);//解除缓冲对象绑定
-    glViewport(0, 0, self.bounds.size.width, self.bounds.size.height);
+    glViewport(0, 0, self.bounds.size.width, self.bounds.size.height);//设置视口
 }
 
 /**
  启动顶点属性
  */
 - (void)bindVertexAttribute {
+    //在我的顶点着色器中一共规定了2个in属性,在这里启用这2个属性
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(LRSignPoint), (GLvoid*)NULL);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(LRSignPoint), (GLvoid*)NULL+offsetof(LRSignPoint, color));
@@ -401,6 +402,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  更新线条的顶点数据
  */
 - (void)updateLineBuffer {
+    //把数据复制到顶点缓冲区
     glBufferData(GL_ARRAY_BUFFER, lineData.length, lineData.bytes, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
@@ -435,6 +437,9 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
  检验上次操作
  */
 - (void)checkLasHandleState {
+    /*
+     想象一个当前的情形,一共画了五个点 [A,B,C,D,E] 当前是E点,撤销 回到 D 当前屏幕上有四个点, 这个时候如果继续手写,那么F 点是会被加载E后面的,这个时候 如果绘制五个点 那么F没画出来, 如果画六个点 那么E又出来了,所以我在这里简单判断一下,因为没有想到其他的好办法,手势开始是 我判断一下 上次操作,如果是前进/后退的操作, 但是当前需要添加新的绘制目标了,所以清除掉当前 前进/后退 位置 后面的数据并将新的数据添加到这个位置后面, 也就是 把E 删除 数组变成[A,B,C,D]然后将F添加[A,B,C,D,F]
+     */
     if (lastHandleState == LRHandleStateWord) {
         [self verifyDataBuffer];
         lastHandleState = LRHandleStateWrite;
