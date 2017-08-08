@@ -72,9 +72,9 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
 
 @interface LRSignView () <GLKViewDelegate>
 {
-    GLuint lineBuffer;//线条缓冲句柄
-    GLuint lineArray;//线条缓冲区
-    uint lineLength;//线条长度
+    GLuint lineBuffer;//线条顶点数组对象
+    GLuint lineArray;//线条顶点缓冲区对象
+    uint lineLength;//顶点缓冲区中可以绘制的数量
     float currentThickness;//线条宽度
     float previousThickness;//上次线条宽度
     float stroke_width_max;//线条最宽处的宽度
@@ -91,7 +91,7 @@ static inline LRSignPoint ViewPointToGL(CGPoint viewPoint,CGRect bounds,GLKVecto
     NSMutableData * lineData;//保存线条 顶点数据
     float eraser_width;//橡皮宽度
     BOOL isErasing;//是否正在擦除
-    NSMutableArray * indexRecords;//记录位置,点击(滑动)结束时需要draw到的index
+    NSMutableArray * indexRecords;//记录位置,tap(pan)手势结束时需要draw到的lineLength
     LRHandleState lastHandleState;//记录上次的操作类型
 }
 @end
@@ -621,6 +621,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
     if (lineLength>2) {
         glBindVertexArray(lineArray);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, lineLength);
+        glBindVertexArray(0);
     }
 }
 @end
