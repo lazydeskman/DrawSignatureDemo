@@ -292,9 +292,7 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         };
         GLKVector2 velocityRadius = radius;
         float angle = 0;
-        
         for (int i = 0; i <= segments; i++) {
-            
             LRSignPoint p = centerPoint;
             p.color = GLKVector4Make(vertex_color.r, vertex_color.g, vertex_color.b, vertex_color.a*stroke_width_smooth);
             p.position.x += velocityRadius.x * cosf(angle);
@@ -623,5 +621,6 @@ GLuint loadShader(GLenum type, const char * shaderSrc){
         glDrawArrays(GL_TRIANGLE_STRIP, 0, lineLength);
         glBindVertexArray(0);
     }
+    
 }
 @end
